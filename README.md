@@ -27,7 +27,7 @@ $ mvn clean install
 ### Gradle
 
 ```xml
-implementation 'io.leego:pharos:1.1.1'
+implementation 'io.leego:pharos:0.0.1'
 ```
 
 ## Documentation
