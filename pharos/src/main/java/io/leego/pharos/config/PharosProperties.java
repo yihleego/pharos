@@ -1,6 +1,7 @@
 package io.leego.pharos.config;
 
 import io.leego.pharos.enums.LoadBalancerRule;
+import io.leego.pharos.enums.SchemeStrategy;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
@@ -14,8 +15,12 @@ import java.util.Set;
 @ConfigurationProperties("spring.cloud.pharos")
 public class PharosProperties {
     private boolean enabled = true;
-    @NestedConfigurationProperty
-    private Scheme scheme = new Scheme();
+    /** key: scheme, value: service-id set */
+    private Map<String, Set<String>> schemes = Collections.emptyMap();
+    private String defaultScheme;
+    private String schemeMetadataName = "scheme";
+    private String schemeHeaderName = "Access-Scheme";
+    private SchemeStrategy schemeStrategy = SchemeStrategy.CONSERVATIVE;
     @NestedConfigurationProperty
     private Loadbalancer loadbalancer = new Loadbalancer();
     @NestedConfigurationProperty
@@ -31,12 +36,44 @@ public class PharosProperties {
         this.enabled = enabled;
     }
 
-    public Scheme getScheme() {
-        return scheme;
+    public Map<String, Set<String>> getSchemes() {
+        return schemes;
     }
 
-    public void setScheme(Scheme scheme) {
-        this.scheme = scheme;
+    public void setSchemes(Map<String, Set<String>> schemes) {
+        this.schemes = schemes;
+    }
+
+    public String getDefaultScheme() {
+        return defaultScheme;
+    }
+
+    public void setDefaultScheme(String defaultScheme) {
+        this.defaultScheme = defaultScheme;
+    }
+
+    public String getSchemeMetadataName() {
+        return schemeMetadataName;
+    }
+
+    public void setSchemeMetadataName(String schemeMetadataName) {
+        this.schemeMetadataName = schemeMetadataName;
+    }
+
+    public String getSchemeHeaderName() {
+        return schemeHeaderName;
+    }
+
+    public void setSchemeHeaderName(String schemeHeaderName) {
+        this.schemeHeaderName = schemeHeaderName;
+    }
+
+    public SchemeStrategy getSchemeStrategy() {
+        return schemeStrategy;
+    }
+
+    public void setSchemeStrategy(SchemeStrategy schemeStrategy) {
+        this.schemeStrategy = schemeStrategy;
     }
 
     public Loadbalancer getLoadbalancer() {
@@ -61,55 +98,6 @@ public class PharosProperties {
 
     public void setRest(Rest rest) {
         this.rest = rest;
-    }
-
-    public static class Scheme {
-        private String defaultValue = "default";
-        private String metadataName = "access_scheme";
-        private String headerName = "Access-Scheme";
-        private String groupHeaderName = "Scheme-Group";
-        /** key: scheme, value: service-id set */
-        private Map<String, Set<String>> groups = Collections.emptyMap();
-
-        public String getDefaultValue() {
-            return defaultValue;
-        }
-
-        public void setDefaultValue(String defaultValue) {
-            this.defaultValue = defaultValue;
-        }
-
-        public String getMetadataName() {
-            return metadataName;
-        }
-
-        public void setMetadataName(String metadataName) {
-            this.metadataName = metadataName;
-        }
-
-        public String getHeaderName() {
-            return headerName;
-        }
-
-        public void setHeaderName(String headerName) {
-            this.headerName = headerName;
-        }
-
-        public String getGroupHeaderName() {
-            return groupHeaderName;
-        }
-
-        public void setGroupHeaderName(String groupHeaderName) {
-            this.groupHeaderName = groupHeaderName;
-        }
-
-        public Map<String, Set<String>> getGroups() {
-            return groups;
-        }
-
-        public void setGroups(Map<String, Set<String>> groups) {
-            this.groups = groups;
-        }
     }
 
     public static class Loadbalancer {

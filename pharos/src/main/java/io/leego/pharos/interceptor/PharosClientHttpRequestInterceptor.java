@@ -1,5 +1,6 @@
 package io.leego.pharos.interceptor;
 
+import io.leego.pharos.config.PharosProperties;
 import io.leego.pharos.metadata.MetadataContext;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
@@ -12,17 +13,17 @@ import java.io.IOException;
  * @author Yihleego
  */
 public class PharosClientHttpRequestInterceptor implements ClientHttpRequestInterceptor {
-    private final String headerName;
+    private final PharosProperties pharosProperties;
 
-    public PharosClientHttpRequestInterceptor(String headerName) {
-        this.headerName = headerName;
+    public PharosClientHttpRequestInterceptor(PharosProperties pharosProperties) {
+        this.pharosProperties = pharosProperties;
     }
 
     @Override
     public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
         String value = MetadataContext.get();
         if (value != null) {
-            request.getHeaders().add(headerName, value);
+            request.getHeaders().add(pharosProperties.getSchemeHeaderName(), value);
         }
         return execution.execute(request, body);
     }

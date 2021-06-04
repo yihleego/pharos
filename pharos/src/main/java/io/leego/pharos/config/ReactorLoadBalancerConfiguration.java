@@ -28,7 +28,7 @@ public class ReactorLoadBalancerConfiguration {
         } else if (rule == LoadBalancerRule.RANDOM) {
             return new RandomPharosLoadBalancer(provider, serviceId, pharosProperties);
         } else {
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("Rule is required");
         }
     }
 
