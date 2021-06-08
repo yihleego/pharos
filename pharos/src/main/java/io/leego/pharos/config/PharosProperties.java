@@ -18,8 +18,8 @@ public class PharosProperties {
     /** key: scheme, value: service-id set */
     private Map<String, Set<String>> schemes = Collections.emptyMap();
     private String defaultScheme;
-    private String schemeMetadataName = "scheme";
-    private String schemeHeaderName = "Access-Scheme";
+    private String schemeMetadataName = "pharos_scheme";
+    private String schemeHeaderName = "Pharos-Scheme";
     private SchemeStrategy schemeStrategy = SchemeStrategy.CONSERVATIVE;
     @NestedConfigurationProperty
     private Loadbalancer loadbalancer = new Loadbalancer();

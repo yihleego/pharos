@@ -1,6 +1,7 @@
 package io.leego.pharos.loadbalancer;
 
-import io.leego.pharos.config.PharosProperties;
+import io.leego.pharos.constant.PharosHeaderNames;
+import io.leego.pharos.context.PharosContext;
 import io.leego.pharos.enums.SchemeStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,8 +20,8 @@ import org.springframework.http.HttpHeaders;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * @author Yihleego
@@ -30,17 +31,14 @@ public abstract class AbstractPharosLoadBalancer implements ReactorServiceInstan
     protected static final EmptyResponse EMPTY = new EmptyResponse();
     protected final ObjectProvider<ServiceInstanceListSupplier> provider;
     protected final String serviceId;
-    protected PharosProperties pharosProperties;
 
     /**
-     * @param provider         a provider of {@link ServiceInstanceListSupplier} that will be used to get available instances
-     * @param serviceId        id of the service for which to choose an instance
-     * @param pharosProperties the config properties
+     * @param provider  a provider of {@link ServiceInstanceListSupplier} that will be used to get available instances
+     * @param serviceId id of the service for which to choose an instance
      */
-    public AbstractPharosLoadBalancer(ObjectProvider<ServiceInstanceListSupplier> provider, String serviceId, PharosProperties pharosProperties) {
+    public AbstractPharosLoadBalancer(ObjectProvider<ServiceInstanceListSupplier> provider, String serviceId) {
         this.provider = provider;
         this.serviceId = serviceId;
-        this.pharosProperties = pharosProperties;
     }
 
     @Override
@@ -67,51 +65,36 @@ public abstract class AbstractPharosLoadBalancer implements ReactorServiceInstan
             return new DefaultResponse(instances.get(nextIndex(instances.size())));
         }
         HttpHeaders headers = ((RequestDataContext) request.getContext()).getClientRequest().getHeaders();
-        String defaultScheme = pharosProperties.getDefaultScheme();
-        String schemeMetadataName = pharosProperties.getSchemeMetadataName();
-        String schemeHeaderName = pharosProperties.getSchemeHeaderName();
-        // Obtain the specified scheme from request headers.
-        String currentScheme = null;
-        String originalScheme = headers.getFirst(schemeHeaderName);
-        if (originalScheme != null && !originalScheme.isEmpty()) {
-            // Obtain the configured schemes from properties.
-            Map<String, Set<String>> schemes = pharosProperties.getSchemes();
-            if (schemes != null && !schemes.isEmpty()) {
-                Set<String> services = schemes.get(originalScheme);
-                if (services != null && services.contains(serviceId)) {
-                    // Use the specified scheme when the service is configured.
-                    currentScheme = originalScheme;
-                }
+        PharosContext context = PharosContext.parse(headers.getFirst(PharosHeaderNames.CONTEXT));
+        String originalScheme = context != null ? context.getOriginalScheme() : null;
+        String defaultScheme = context != null ? context.getDefaultScheme() : null;
+        String schemeMetadataName = context != null ? context.getSchemeMetadataName() : null;
+        Set<String> services = context != null ? context.getServices() : null;
+        // Use the default services if the input scheme is empty or not configured.
+        if (originalScheme == null || originalScheme.isEmpty()
+                || services == null || !services.contains(this.serviceId)) {
+            Response<ServiceInstance> defaultResponse = getDefaultResponse(instances, defaultScheme, schemeMetadataName);
+            if (!defaultResponse.hasServer()) {
+                logger.warn("No default servers available, service-id='{}', scheme='{}'", this.serviceId, originalScheme);
             }
+            return defaultResponse;
         }
-        int size = 0;
-        int[] indexes = new int[instances.size()];
-        if (isDefaultScheme(currentScheme, defaultScheme)) {
-            for (int i = 0; i < instances.size(); i++) {
-                if (isDefaultScheme(instances.get(i).getMetadata().get(schemeMetadataName), defaultScheme)) {
-                    indexes[size++] = i;
-                }
-            }
-        } else {
-            for (int i = 0; i < instances.size(); i++) {
-                if (currentScheme.equals(instances.get(i).getMetadata().get(schemeMetadataName))) {
-                    indexes[size++] = i;
-                }
-            }
-            // Try to use default services if the specified services were absent and the conservative strategy is specified.
-            if (size == 0 && SchemeStrategy.CONSERVATIVE == pharosProperties.getSchemeStrategy()) {
-                for (int i = 0; i < instances.size(); i++) {
-                    if (isDefaultScheme(instances.get(i).getMetadata().get(schemeMetadataName), defaultScheme)) {
-                        indexes[size++] = i;
-                    }
-                }
-            }
+        // Find the services that match the specified scheme.
+        Response<ServiceInstance> specifiedResponse = getSpecifiedResponse(instances, originalScheme, schemeMetadataName);
+        if (specifiedResponse.hasServer()) {
+            return specifiedResponse;
         }
-        if (size == 0) {
-            logger.warn("No servers available, service-id='{}', scheme='{}'", serviceId, originalScheme);
+        // Check the strategy.
+        if (!SchemeStrategy.CONSERVATIVE.name().equals(context.getSchemeStrategy())) {
+            logger.warn("No specified servers available, service-id='{}', scheme='{}'", this.serviceId, originalScheme);
             return EMPTY;
         }
-        return new DefaultResponse(instances.get(indexes[nextIndex(size)]));
+        // Try to find the default services if the specified services were absent and the specified strategy is conservative.
+        Response<ServiceInstance> defaultResponse = getDefaultResponse(instances, defaultScheme, schemeMetadataName);
+        if (!defaultResponse.hasServer()) {
+            logger.warn("No specified or default servers available, service-id='{}', scheme='{}'", this.serviceId, originalScheme);
+        }
+        return defaultResponse;
     }
 
     /**
@@ -120,7 +103,25 @@ public abstract class AbstractPharosLoadBalancer implements ReactorServiceInstan
      */
     public abstract int nextIndex(int bound);
 
-    private boolean isDefaultScheme(String currentScheme, String defaultScheme) {
-        return currentScheme == null || currentScheme.isEmpty() || currentScheme.equals(defaultScheme);
+    private Response<ServiceInstance> getDefaultResponse(List<ServiceInstance> instances, String defaultScheme, String schemeMetadataName) {
+        return getFilteredResponse(instances, schemeMetadataName, metadataScheme -> metadataScheme == null || metadataScheme.isEmpty() || metadataScheme.equals(defaultScheme));
+    }
+
+    private Response<ServiceInstance> getSpecifiedResponse(List<ServiceInstance> instances, String originalScheme, String schemeMetadataName) {
+        return getFilteredResponse(instances, schemeMetadataName, originalScheme::equals);
+    }
+
+    private Response<ServiceInstance> getFilteredResponse(List<ServiceInstance> instances, String schemeMetadataName, Predicate<String> filter) {
+        int size = 0;
+        int[] indexes = new int[instances.size()];
+        for (int i = 0; i < instances.size(); i++) {
+            if (filter.test(instances.get(i).getMetadata().get(schemeMetadataName))) {
+                indexes[size++] = i;
+            }
+        }
+        if (size == 0) {
+            return EMPTY;
+        }
+        return new DefaultResponse(instances.get(indexes[nextIndex(size)]));
     }
 }

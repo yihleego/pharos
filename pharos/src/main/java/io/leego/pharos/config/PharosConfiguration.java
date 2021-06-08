@@ -1,6 +1,7 @@
 package io.leego.pharos.config;
 
 import feign.RequestInterceptor;
+import io.leego.pharos.filter.PharosGatewayFilter;
 import io.leego.pharos.interceptor.PharosClientHttpRequestInterceptor;
 import io.leego.pharos.interceptor.PharosHandlerInterceptor;
 import io.leego.pharos.interceptor.PharosRequestInterceptor;
@@ -10,6 +11,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.serviceregistry.Registration;
+import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.cloud.loadbalancer.annotation.LoadBalancerClients;
 import org.springframework.cloud.loadbalancer.core.ReactorLoadBalancer;
 import org.springframework.context.annotation.Bean;
@@ -37,13 +39,23 @@ public class PharosConfiguration {
     }
 
     @Configuration
+    @ConditionalOnClass(GlobalFilter.class)
+    public static class GatewayConfiguration {
+        @Bean
+        @ConditionalOnMissingBean
+        public PharosGatewayFilter pharosGatewayFilter(PharosProperties pharosProperties) {
+            return new PharosGatewayFilter(pharosProperties);
+        }
+    }
+
+    @Configuration
     @ConditionalOnClass(RequestInterceptor.class)
     @ConditionalOnProperty(value = "spring.cloud.pharos.feign.enabled", matchIfMissing = true)
     public static class FeignConfiguration {
         @Bean
         @ConditionalOnMissingBean
-        public PharosRequestInterceptor pharosRequestInterceptor(PharosProperties pharosProperties) {
-            return new PharosRequestInterceptor(pharosProperties);
+        public PharosRequestInterceptor pharosRequestInterceptor() {
+            return new PharosRequestInterceptor();
         }
     }
 
@@ -53,8 +65,8 @@ public class PharosConfiguration {
     public static class RestConfiguration {
         @Bean
         @ConditionalOnMissingBean
-        public PharosClientHttpRequestInterceptor pharosClientHttpRequestInterceptor(PharosProperties pharosProperties) {
-            return new PharosClientHttpRequestInterceptor(pharosProperties);
+        public PharosClientHttpRequestInterceptor pharosClientHttpRequestInterceptor() {
+            return new PharosClientHttpRequestInterceptor();
         }
     }
 
@@ -67,8 +79,8 @@ public class PharosConfiguration {
 
         @Bean
         @ConditionalOnMissingBean(PharosHandlerInterceptor.class)
-        public PharosHandlerInterceptor pharosHandlerInterceptor(PharosProperties pharosProperties, Registration registration) {
-            return new PharosHandlerInterceptor(pharosProperties, registration);
+        public PharosHandlerInterceptor pharosHandlerInterceptor(Registration registration) {
+            return new PharosHandlerInterceptor(registration);
         }
 
         @Override

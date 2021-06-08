@@ -24,9 +24,9 @@ public class ReactorLoadBalancerConfiguration {
         ObjectProvider<ServiceInstanceListSupplier> provider = loadBalancerClientFactory.getLazyProvider(serviceId, ServiceInstanceListSupplier.class);
         LoadBalancerRule rule = pharosProperties.getLoadbalancer().getRule();
         if (rule == LoadBalancerRule.ROUND_ROBIN) {
-            return new RoundRobinPharosLoadBalancer(provider, serviceId, pharosProperties);
+            return new RoundRobinPharosLoadBalancer(provider, serviceId);
         } else if (rule == LoadBalancerRule.RANDOM) {
-            return new RandomPharosLoadBalancer(provider, serviceId, pharosProperties);
+            return new RandomPharosLoadBalancer(provider, serviceId);
         } else {
             throw new IllegalArgumentException("Rule is required");
         }

@@ -1,6 +1,6 @@
 package io.leego.pharos.interceptor;
 
-import io.leego.pharos.config.PharosProperties;
+import io.leego.pharos.constant.PharosHeaderNames;
 import io.leego.pharos.metadata.MetadataContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,29 +15,26 @@ import javax.servlet.http.HttpServletResponse;
  */
 public class PharosHandlerInterceptor implements HandlerInterceptor {
     protected static final Logger logger = LoggerFactory.getLogger(PharosHandlerInterceptor.class);
-    private final PharosProperties pharosProperties;
     private final Registration registration;
 
-    public PharosHandlerInterceptor(PharosProperties pharosProperties) {
-        this.pharosProperties = pharosProperties;
+    public PharosHandlerInterceptor() {
         this.registration = null;
     }
 
-    public PharosHandlerInterceptor(PharosProperties pharosProperties, Registration registration) {
-        this.pharosProperties = pharosProperties;
+    public PharosHandlerInterceptor(Registration registration) {
         this.registration = registration;
     }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        String value = request.getHeader(pharosProperties.getSchemeHeaderName());
+        String value = request.getHeader(PharosHeaderNames.CONTEXT);
         if (logger.isDebugEnabled() && registration != null) {
             logger.debug("Intercepting request \033[32m{} {}\033[0m {service-id='{}', instance-id='{}', metadata='{}', header='{}'}",
                     request.getMethod(),
                     request.getRequestURI(),
                     registration.getServiceId(),
                     registration.getInstanceId(),
-                    registration.getMetadata().get(pharosProperties.getSchemeMetadataName()),
+                    registration.getMetadata(),
                     value);
         }
         if (value != null) {
@@ -50,4 +47,5 @@ public class PharosHandlerInterceptor implements HandlerInterceptor {
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception e) {
         MetadataContext.remove();
     }
+
 }
